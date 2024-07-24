@@ -44,6 +44,7 @@ def train_model(model, train_loader, valid_loader, optimizer, experiment_name=No
     )
   else:
     print('WARNING: training without logging to wandb')
+    run = None
 
   results_dict = {
       "avg_train_losses": list(),
@@ -55,7 +56,7 @@ def train_model(model, train_loader, valid_loader, optimizer, experiment_name=No
   for epoch in tqdm(range(num_epochs)):
     no_train = True if epoch == 0 else False # to get a baseline
     latest_epoch_results_dict = train_epoch(
-        MLP, train_loader, valid_loader, optimizer=optimizer, no_train=no_train, perturbation_update=perturbation_update
+        MLP, train_loader, valid_loader, optimizer=optimizer, no_train=no_train, perturbation_update=perturbation_update, run, epoch
         )
 
     for key, result in latest_epoch_results_dict.items():
@@ -63,6 +64,8 @@ def train_model(model, train_loader, valid_loader, optimizer, experiment_name=No
         results_dict[key].append(latest_epoch_results_dict[key])
       else:
         results_dict[key] = result # copy latest
+
+    # Logging on epochs
     if log_results:
       run.log({"avg_train_losses": results_dict['avg_train_losses'], "epoch": epoch})
   
@@ -78,7 +81,7 @@ def train_model(model, train_loader, valid_loader, optimizer, experiment_name=No
   return results_dict
 
 
-def train_epoch(MLP, train_loader, valid_loader, optimizer, no_train=False, perturbation_update=False):
+def train_epoch(MLP, train_loader, valid_loader, optimizer, no_train=False, perturbation_update=False, run=None, epoch=None):
   """
   Train a model for one epoch.
 
@@ -160,6 +163,10 @@ def train_epoch(MLP, train_loader, valid_loader, optimizer, no_train=False, pert
       if not no_train:
         loss.backward()
         optimizer.step()
+
+    # Logging at end of batch 
+    # if run is not None:
+    #     run.log({"train_loss": loss.item(), "epoch": epoch})
 
   num_items = len(train_loader.dataset)
   epoch_results_dict["avg_train_losses"] = np.sum(train_losses) / num_items

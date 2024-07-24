@@ -1,3 +1,5 @@
+import torch
+
 def train_model(MLP, train_loader, valid_loader, optimizer, num_epochs=5, perturbation_update=False):
   """
   Train a model for several epochs.

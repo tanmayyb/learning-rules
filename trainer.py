@@ -70,20 +70,6 @@ test_loader = DataLoader(
 )
 
 
-def generate_experiment_name( # write this function to generate your custom name
-    name,
-    # ... any args you want
-):
-  # ... your experiment name generator
-  return name
-
-experiment_name = generate_experiment_name(
-    # "<dev>-<experiment>-<counter>",
-    "tbishnoi-modeltestlocal-0",
-    # any other args you want
-)
-
-from rules.classes.BasicOptim import BasicOptimizer
 from rules.classes.BasicOptim import BasicOptimizer
 
 def select_model(configs)-> torch.nn.Module:
@@ -147,20 +133,49 @@ optimizer = BasicOptimizer(model.parameters(), lr=configs['lr'], weight_decay=co
 
 
 
+"""
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+   /$$                        /$$           /$$                                     /$$                    
+  | $$                       |__/          |__/                                    | $$                    
+ /$$$$$$    /$$$$$$  /$$$$$$  /$$ /$$$$$$$  /$$ /$$$$$$$   /$$$$$$         /$$$$$$ | $$  /$$$$$$  /$$$$$$$ 
+|_  $$_/   /$$__  $$|____  $$| $$| $$__  $$| $$| $$__  $$ /$$__  $$       /$$__  $$| $$ |____  $$| $$__  $$
+  | $$    | $$  \__/ /$$$$$$$| $$| $$  \ $$| $$| $$  \ $$| $$  \ $$      | $$  \ $$| $$  /$$$$$$$| $$  \ $$
+  | $$ /$$| $$      /$$__  $$| $$| $$  | $$| $$| $$  | $$| $$  | $$      | $$  | $$| $$ /$$__  $$| $$  | $$
+  |  $$$$/| $$     |  $$$$$$$| $$| $$  | $$| $$| $$  | $$|  $$$$$$$      | $$$$$$$/| $$|  $$$$$$$| $$  | $$
+   \___/  |__/      \_______/|__/|__/  |__/|__/|__/  |__/ \____  $$      | $$____/ |__/ \_______/|__/  |__/
+                                                          /$$  \ $$      | $$                              
+                                                         |  $$$$$$/      | $$                              
+                                                          \______/       |__/                              
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+"""
+
 from utils.training_utils import train_model
 
-print(configs)
+def generate_experiment_name( # write this function to generate your custom name
+  name,
+):
+  name = f"tbishnoi-modeltestlocal-0-{name}"
+  return name
 
-# TODO: add validation loader
-train_model(
-  model, 
-  train_loader, 
-  test_loader, 
-  optimizer, 
-  experiment_name, 
-  configs, 
-  log_results=False, 
-  device=device
+for rule in ['backprop', 'hebb']:
+
+  configs['rule_select'] = rule
+  experiment_name = generate_experiment_name(rule)
+  print(
+    "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%\n"
+    f"rule: {rule}\n"
+    "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%\n"
+  )
+
+  train_model(
+    model, 
+    train_loader, 
+    test_loader, 
+    optimizer, 
+    experiment_name, 
+    configs, 
+    log_results=True, 
+    device=device
 )
 
 

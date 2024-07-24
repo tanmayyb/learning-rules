@@ -13,6 +13,8 @@ Implementing various Bio-Plausible Learning Rules for comparison to BP algorithm
 
 #### 1.1 Backprop
 
+<img src="./imgs/BP.png" alt="BP Illustration" width="400"/>
+
 
 <!-- #### 2. TargetProp -->
 
@@ -23,7 +25,7 @@ Implementing various Bio-Plausible Learning Rules for comparison to BP algorithm
 
 - Random synaptic feedback weights support error backpropagation for deep learning (Lillicrap et al, 2016)
 
-<img src="./imgs/FA-diag.png" alt="FA Algorithm illustration" width="400"/>
+<img src="./imgs/FA.png" alt="FA Illustration" width="400"/>
 
 
 
@@ -31,5 +33,7 @@ Implementing various Bio-Plausible Learning Rules for comparison to BP algorithm
 ### 3. Low Precision of Synaptic Change
 
 #### 3.1 Node Pertubation
+<img src="./imgs/NP.png" alt="Node Pertubation Illustration" width="400"/>
 
 #### 3.2 Weight Pertubation
+<img src="./imgs/WP.png" alt="Weight Pertubation Illustration" width="400"/>

@@ -12,8 +12,9 @@ import torch
 import torchvision
 import contextlib
 import io
+import wandb
 
-def train_model(MLP, train_loader, valid_loader, optimizer, num_epochs=5, perturbation_update=False):
+def train_model(model, train_loader, valid_loader, optimizer, experiment_name=None, configs=None, log_results=False):
   """
   Train a model for several epochs.
 
@@ -28,6 +29,21 @@ def train_model(MLP, train_loader, valid_loader, optimizer, num_epochs=5, pertur
   - results_dict (dict): Dictionary storing results across epochs on training
     and validation data.
   """
+  MLP = model
+  num_epochs = configs['epochs']
+  perturbation_update = configs['rule_select'] is in ['wp', 'np']
+
+  if log_results:
+    # initialize run
+    run = wandb.init(
+      entity=entity,
+      project=project,
+      name=experiment_name,
+      config=configs,
+      resume="never",
+    )
+  else:
+    print('WARNING: training without logging to wandb')
 
   results_dict = {
       "avg_train_losses": list(),
@@ -36,8 +52,8 @@ def train_model(MLP, train_loader, valid_loader, optimizer, num_epochs=5, pertur
       "avg_valid_accuracies": list(),
   }
 
-  for e in tqdm(range(num_epochs)):
-    no_train = True if e == 0 else False # to get a baseline
+  for epoch in tqdm(range(num_epochs)):
+    no_train = True if epoch == 0 else False # to get a baseline
     latest_epoch_results_dict = train_epoch(
         MLP, train_loader, valid_loader, optimizer=optimizer, no_train=no_train, perturbation_update=perturbation_update
         )
@@ -47,7 +63,18 @@ def train_model(MLP, train_loader, valid_loader, optimizer, num_epochs=5, pertur
         results_dict[key].append(latest_epoch_results_dict[key])
       else:
         results_dict[key] = result # copy latest
-
+    if log_results:
+      run.log({"loss": loss.item(), "epoch": epoch})
+  
+  if log_results:
+    # save model info
+    os.makedirs("models", exist_ok=True)
+    torch.save(model.state_dict(), "models/model.pth")
+    wandb.save("models/model.pth")
+  
+    # important: finish experiment
+    run.finish()
+  
   return results_dict
 
 

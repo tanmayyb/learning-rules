@@ -1,8 +1,8 @@
 import torch
 
-NUM_INPUTS = 10
+NUM_INPUTS = 784
 NUM_HIDDEN = 100
-NUM_OUTPUTS = 2
+NUM_OUTPUTS = 10
 ACTIVATION_TYPE = 'sigmoid'
 BIAS = False
 

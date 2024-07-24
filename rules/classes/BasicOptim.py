@@ -1,3 +1,5 @@
+import torch
+
 class BasicOptimizer(torch.optim.Optimizer):
   """
   Simple optimizer class based on the SGD optimizer.

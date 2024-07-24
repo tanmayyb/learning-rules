@@ -51,6 +51,8 @@ def train_model(model, train_loader, valid_loader, optimizer, experiment_name=No
       "avg_valid_losses": list(),
       "avg_train_accuracies": list(),
       "avg_valid_accuracies": list(),
+      "weight_stats": list(),
+      "activation_stats": list(),
   }
 
   for epoch in tqdm(range(num_epochs)):
@@ -116,6 +118,12 @@ def train_epoch(MLP, train_loader, valid_loader, optimizer, no_train=False, pert
 
   MLP.train()
   train_losses, train_acc = list(), list()
+  
+  #new
+  all_weight_stats = []
+  all_activation_stats = []
+  all_loss_stats = []
+    
   for X, y in train_loader:
     if perturbation_update:
       # Update model using perturbation
@@ -126,7 +134,11 @@ def train_epoch(MLP, train_loader, valid_loader, optimizer, no_train=False, pert
       acc = (torch.argmax(y_pred.detach(), axis=1) == y).sum() / len(y)
       train_losses.append(loss.item() * len(y))
       train_acc.append(acc.item() * len(y))
-
+      update_results_by_class_in_place(
+            y, y_pred.detach(), epoch_results_dict, dataset="train",
+            num_classes=MLP.num_outputs
+      )
+      
       update_results_by_class_in_place(
           y, y_pred.detach(), epoch_results_dict, dataset="train",
           num_classes=MLP.num_outputs
@@ -189,33 +201,62 @@ def train_epoch(MLP, train_loader, valid_loader, optimizer, no_train=False, pert
   epoch_results_dict["avg_valid_losses"] = np.sum(valid_losses) / num_items
   epoch_results_dict["avg_valid_accuracies"] = np.sum(valid_acc) / num_items * 100
 
+  # Compute aggregate statistics
+  weight_agg_stats = compute_aggregate_stats(all_weight_stats)
+  activation_agg_stats = compute_aggregate_stats(all_activation_stats)
+
+  # Add to epoch_results_dict
+  epoch_results_dict['weight_stats'] = weight_agg_stats
+  epoch_results_dict['activation_stats'] = activation_agg_stats
+
   return epoch_results_dict
 
 def update_results_by_class_in_place(y, y_pred, result_dict, dataset="train",
                                      num_classes=10):
-  """
-  Updates results dictionary in place during a training epoch by adding data
-  needed to compute the accuracies for each class.
+    y_pred = np.argmax(y_pred, axis=1)
+    if len(y) != len(y_pred):
+        raise RuntimeError("Number of predictions does not match number of targets.")
 
-  Arguments:
-  - y (torch Tensor): target labels
-  - y_pred (torch Tensor): predicted targets
-  - result_dict (dict): Dictionary storing epoch results on training
-    and validation data.
-  - dataset (str, optional): Dataset for which results are being added.
-  - num_classes (int, optional): Number of classes.
-  """
+    for i in result_dict[f"{dataset}_seen_by_class"].keys():
+        idxs = np.where(y == int(i))[0]
+        result_dict[f"{dataset}_seen_by_class"][int(i)] += len(idxs)
 
-  correct_by_class = None
-  seen_by_class = None
+        num_correct = int(sum(y[idxs] == y_pred[idxs]))
+        result_dict[f"{dataset}_correct_by_class"][int(i)] += num_correct
 
-  y_pred = np.argmax(y_pred, axis=1)
-  if len(y) != len(y_pred):
-    raise RuntimeError("Number of predictions does not match number of targets.")
+def collect_statistics(model, data):
+    # Collect weight statistics
+    weight_stats = {
+        'lin1': model.lin1.weight.data.clone(),
+        'lin2': model.lin2.weight.data.clone()
+    }
 
-  for i in result_dict[f"{dataset}_seen_by_class"].keys():
-    idxs = np.where(y == int(i))[0]
-    result_dict[f"{dataset}_seen_by_class"][int(i)] += len(idxs)
+    # Collect activation statistics
+    model.eval()
+    with torch.no_grad():
+        h = model(data)
 
-    num_correct = int(sum(y[idxs] == y_pred[idxs]))
-    result_dict[f"{dataset}_correct_by_class"][int(i)] += num_correct
+    activation_stats = {
+        'output': h.clone(),
+    }
+
+    # We can't collect layer-wise activity changes without modifying the model
+    # So we'll skip this for now
+
+    return weight_stats, activation_stats
+
+def compute_aggregate_stats(stats_list):
+    all_stats = []
+    for stats in stats_list:
+        flat_stats = torch.cat([s.flatten() for s in stats.values()])
+        all_stats.append(flat_stats.numpy())
+
+    all_stats = np.array(all_stats)
+
+    return {
+        'mean': np.mean(all_stats, axis=1),
+        'std': np.std(all_stats, axis=1),
+        'min': np.min(all_stats, axis=1),
+        'max': np.max(all_stats, axis=1),
+        'median': np.median(all_stats, axis=1)
+    }

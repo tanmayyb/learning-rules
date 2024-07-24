@@ -64,7 +64,7 @@ def train_model(model, train_loader, valid_loader, optimizer, experiment_name=No
       else:
         results_dict[key] = result # copy latest
     if log_results:
-      run.log({"loss": loss.item(), "epoch": epoch})
+      run.log({"avg_train_losses": results_dict['avg_train_losses'], "epoch": epoch})
   
   if log_results:
     # save model info

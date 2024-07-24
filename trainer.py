@@ -4,19 +4,54 @@ from torchvision import datasets, transforms
 from torch.autograd import Variable
 
 from tqdm import tqdm
+from datetime import datetime, timezone
+
+# Get the current date and time
 
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-BATCH_SIZE = 32
-epochs = 10
+batch_size = 32
+epochs = 2
+rule_select = 'hebb'
+num_inputs = 784
+num_hidden = 100
+num_outputs = 10
+activation_type = 'relu'
+bias = False
+lr=1e-4
+momentum=0.9
+weight_decay=0.001
+nesterov=True
 
-RULE_SELECT = 'hebb'
-NUM_INPUTS = 784
-NUM_HIDDEN = 100
-NUM_OUTPUTS = 10
-ACTIVATION_TYPE = 'sigmoid'
-BIAS = False
+import wandb
+from wandb_config import USERNAME
+
+configs = dict(
+    rule_select = rule_select,
+    num_inputs = num_inputs,
+    num_hidden = num_hidden,
+    num_outputs = num_outputs,
+    activation_type = activation_type,
+    bias = bias,
+    lr = lr,
+    momentum = momentum,
+    weight_decay = weight_decay,
+    nesterov = nesterov,
+)
+
+experiment_name = "hebb-test"
+
+now = datetime.now(timezone.utc)
+formatted_datetime = now.strftime("%y%m%d-%H%M")
+run = wandb.init(
+    entity=USERNAME,
+    project="learning-rules",
+    name=experiment_name+"-"+formatted_datetime,
+    config=configs,
+    resume="never",
+)
+
 
 
 
@@ -52,25 +87,29 @@ test_loader = DataLoader(
 
 
 
-if RULE_SELECT == 'hebb':
-
-    # from models.FA import *
-
-    # model = FANetwork(
-    #     in_features=784, 
-    #     num_layers=2, 
-    #     num_hidden_list=[1000, 10]
-    # ).to(device)
-
+if rule_select == 'hebb':
     from rules.Hebbian import HebbianNetwork
 
     model = HebbianNetwork(
-        num_inputs=NUM_INPUTS,
-        num_hidden=NUM_HIDDEN,
-        num_outputs=NUM_OUTPUTS,
+        num_inputs=num_inputs,
+        num_hidden=num_hidden,
+        num_outputs=num_outputs,
         clamp_output=False,
-        bias=BIAS,
+        bias=bias,
     ).to(device)
+
+elif rule_select == 'fa':
+    from rules.FA import FeedbackAlignmentPerceptron
+
+    model = FeedbackAlignmentPerceptron(
+        num_inputs=num_inputs,
+        num_hidden=num_hidden,
+        num_outputs=num_outputs,
+        bias=bias,
+        activation_type=activation_type,
+    ).to(device)
+
+# elif rule_select == ''
 
 else:
     raise NotImplementedError("Selected Rule does not exist!")
@@ -83,10 +122,13 @@ else:
 
 optimizer = torch.optim.SGD(
     model.parameters(),
-    lr=1e-4, momentum=0.9, weight_decay=0.001, nesterov=True,
+    lr=lr, momentum=momentum, 
+    weight_decay=weight_decay, 
+    nesterov=nesterov,
 )
-
 loss_crossentropy = torch.nn.CrossEntropyLoss()
+
+
 
 for epoch in tqdm(range(epochs)):
     for idx_batch, (inputs, targets) in enumerate(train_loader):
@@ -103,8 +145,16 @@ for epoch in tqdm(range(epochs)):
         loss.backward()
         optimizer.step()
 
-        # if (...):
-        #     logging...
+        run.log({"loss": loss.item(), "epoch": epoch})
+
+
+# Save the model
+torch.save(model.state_dict(), "models/model.pth")
+wandb.save("models/model.pth")
+
+# run.log_artifact("models/model.pth", name = "state_dict", type = "dict" )
+
+run.finish()
 
 
 

@@ -1,5 +1,17 @@
+from IPython.display import Image, SVG, display
+import os
+from pathlib import Path
+
+import random
+from tqdm import tqdm
+import warnings
+import numpy as np
+import matplotlib.pyplot as plt
+import scipy
 import torch
 import torchvision
+import contextlib
+import io
 
 def download_mnist(train_prop=0.8, keep_prop=0.5):
 

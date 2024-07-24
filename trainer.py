@@ -149,7 +149,18 @@ optimizer = BasicOptimizer(model.parameters(), lr=configs['lr'], weight_decay=co
 
 from utils.training_utils import train_model
 
+print(configs)
+
 # TODO: add validation loader
-train_model(model, train_loader, test_loader, optimizer, experiment_name, configs, log_results=True)
+train_model(
+  model, 
+  train_loader, 
+  test_loader, 
+  optimizer, 
+  experiment_name, 
+  configs, 
+  log_results=False, 
+  device=device
+)
 
 

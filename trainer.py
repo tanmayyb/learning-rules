@@ -8,18 +8,17 @@ import os
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-
 # !pip install wandb --quiet
 import wandb
 wandb.login()
-
-
 
 
 entity="adorable-lantanas"
 project="learning-rules"
 
 configs = dict(
+  entity=entity,
+  project=project,
   rule_select = 'hebb',
   epochs = 2,
   batch_size = 32,
@@ -32,7 +31,7 @@ configs = dict(
   momentum=0.9,
   weight_decay=0.001,
   nesterov=True,
-  
+
   ############
   # specific #
   ############
@@ -53,7 +52,7 @@ train_loader = DataLoader(
     ])
   ),
   batch_size=configs['batch_size'],
-  shuffle=True,    
+  shuffle=True,
 )
 
 test_loader = DataLoader(
@@ -63,7 +62,7 @@ test_loader = DataLoader(
       transforms.ToTensor(),
         transforms.Normalize(
           (0.1307,),(0.3081,)
-          )        
+          )
       ]),
   ),
   batch_size=configs['batch_size'],
@@ -79,15 +78,26 @@ def generate_experiment_name( # write this function to generate your custom name
   return name
 
 experiment_name = generate_experiment_name(
-    "<dev>-<experiment>-<counter>",
-    # "tbishnoi-colabtraintest-0",
+    # "<dev>-<experiment>-<counter>",
+    "tbishnoi-modeltestlocal-0",
     # any other args you want
 )
 
-
+from rules.classes.BasicOptim import BasicOptimizer
+from rules.classes.BasicOptim import BasicOptimizer
 
 def select_model(configs)-> torch.nn.Module:
-  if configs['rule_select'] == 'hebb':
+  if configs['rule_select'] == 'backprop':
+    from rules.classes.MLP import MultiLayerPerceptron
+    model = MultiLayerPerceptron(
+      num_inputs=configs['num_inputs'],
+      num_hidden=configs['num_hidden'],
+      num_outputs=configs['num_outputs'],
+      bias=configs['bias'],
+      activation_type=configs['activation_type'],
+    ).to(device)
+
+  elif configs['rule_select'] == 'hebb':
     from rules.Hebbian import HebbianNetwork
     model = HebbianNetwork(
       num_inputs=configs['num_inputs'],
@@ -95,6 +105,26 @@ def select_model(configs)-> torch.nn.Module:
       num_outputs=configs['num_outputs'],
       clamp_output=configs['clamp_output'],
       bias=configs['bias'],
+    ).to(device)
+
+  elif configs['rule_select'] == 'wp':
+    from rules.WP import WeightPerturbMLP
+    model = WeightPerturbMLP(
+      num_inputs=configs['num_inputs'],
+      num_hidden=configs['num_hidden'],
+      num_outputs=configs['num_outputs'],
+      bias=configs['bias'],
+      activation_type=configs['activation_type'],
+    ).to(device)
+
+  elif configs['rule_select'] == 'np':
+    from rules.NP import NodePerturbMLP
+    model = NodePerturbMLP(
+      num_inputs=configs['num_inputs'],
+      num_hidden=configs['num_hidden'],
+      num_outputs=configs['num_outputs'],
+      bias=configs['bias'],
+      activation_type=configs['activation_type'],
     ).to(device)
 
   elif configs['rule_select'] == 'fa':
@@ -109,55 +139,17 @@ def select_model(configs)-> torch.nn.Module:
 
   else:
       raise NotImplementedError("Selected Rule does not exist!")
-  
+
   return model
 
 model = select_model(configs)
+optimizer = BasicOptimizer(model.parameters(), lr=configs['lr'], weight_decay=configs['weight_decay'])
 
 
-def trainer(experiment_name, configs):
-  # initialize run
-  run = wandb.init(
-    entity=entity,
-    project=project,
-    name=experiment_name,
-    config=configs,
-    resume="never",
-  )
 
-  optimizer = torch.optim.SGD(
-    model.parameters(),
-    lr=configs['lr'], 
-    momentum=configs['momentum'], 
-    weight_decay=configs['weight_decay'], 
-    nesterov=configs['nesterov'],
-  )
-  loss_crossentropy = torch.nn.CrossEntropyLoss()
+from utils.training_utils import train_model
 
-  # training loop
-  for epoch in tqdm(range(configs['epochs'])):
-    for idx_batch, (inputs, targets) in enumerate(train_loader):
-      inputs = inputs.view(configs['batch_size'], -1)
+# TODO: add validation loader
+train_model(model, train_loader, test_loader, optimizer, experiment_name, configs, log_results=True)
 
-      inputs, targets = Variable(inputs), Variable(targets)
-      outputs = model(inputs.to(device))
-      loss = loss_crossentropy(outputs, targets.to(device))
-
-      model.zero_grad()
-      loss.backward()
-      optimizer.step()
-
-      # training history
-      run.log({"loss": loss.item(), "epoch": epoch})
-
-
-  # save model info
-  os.makedirs("models", exist_ok=True)
-  torch.save(model.state_dict(), "models/model.pth")
-  wandb.save("models/model.pth")
-  
-  # important: finish experiment
-  run.finish()
-
-trainer(experiment_name, configs)
 

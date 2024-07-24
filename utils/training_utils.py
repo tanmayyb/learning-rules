@@ -36,8 +36,8 @@ def train_model(model, train_loader, valid_loader, optimizer, experiment_name=No
   if log_results:
     # initialize run
     run = wandb.init(
-      entity=entity,
-      project=project,
+      entity=config['entity'],
+      project=config['project'],
       name=experiment_name,
       config=configs,
       resume="never",

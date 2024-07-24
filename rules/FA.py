@@ -1,8 +1,5 @@
-import torch
+import torch 
 from .classes.MLP import MultiLayerPerceptron
-
-
-#@Josh Tindall's implementation
 
 class FeedbackAlignmentFunction(torch.autograd.Function):
   """
@@ -198,5 +195,3 @@ class FeedbackAlignmentPerceptron(MultiLayerPerceptron):
     )
 
     return y_pred
-
-

@@ -165,8 +165,8 @@ def train_epoch(MLP, train_loader, valid_loader, optimizer, no_train=False, pert
         optimizer.step()
 
     # Logging at end of batch 
-    # if run is not None:
-    #     run.log({"train_loss": loss.item(), "epoch": epoch})
+    if run is not None:
+        run.log({"train_loss": loss.item(), "epoch": epoch})
 
   num_items = len(train_loader.dataset)
   epoch_results_dict["avg_train_losses"] = np.sum(train_losses) / num_items

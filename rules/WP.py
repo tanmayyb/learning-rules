@@ -8,6 +8,7 @@ class WeightPerturbMLP(MultiLayerPerceptron):
 
   def __init__(self, sigma=1e-4, **kwargs):
     """
+    NOTE: working hyperparameters seem to be lr=1e-3, sigma=1e-4, activation='relu'
     """
 
     self.sigma = sigma

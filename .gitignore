@@ -1,3 +1,5 @@
 data
 __pycache__
 wandb_config.py
+wandb
+models

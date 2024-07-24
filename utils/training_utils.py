@@ -56,7 +56,7 @@ def train_model(model, train_loader, valid_loader, optimizer, experiment_name=No
   for epoch in tqdm(range(num_epochs)):
     no_train = True if epoch == 0 else False # to get a baseline
     latest_epoch_results_dict = train_epoch(
-        MLP, train_loader, valid_loader, optimizer=optimizer, no_train=no_train, perturbation_update=perturbation_update, run, epoch
+        MLP, train_loader, valid_loader, optimizer=optimizer, no_train=no_train, perturbation_update=perturbation_update, run=run, epoch=epoch
         )
 
     for key, result in latest_epoch_results_dict.items():

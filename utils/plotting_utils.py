@@ -1,3 +1,6 @@
+import torch
+import torchvision
+
 def get_plotting_color(dataset="train", model_idx=None):
   if model_idx is not None:
     dataset = None

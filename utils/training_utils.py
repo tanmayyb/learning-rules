@@ -14,21 +14,17 @@ import contextlib
 import io
 import wandb
 
-def train_model(model, train_loader, valid_loader, optimizer, experiment_name=None, configs=None, log_results=False):
-  """
-  Train a model for several epochs.
-
-  Arguments:
-  - MLP (torch model): Model to train.
-  - train_loader (torch dataloader): Dataloader to use to train the model.
-  - valid_loader (torch dataloader): Dataloader to use to validate the model.
-  - optimizer (torch optimizer): Optimizer to use to update the model.
-  - num_epochs (int, optional): Number of epochs to train model.
-
-  Returns:
-  - results_dict (dict): Dictionary storing results across epochs on training
-    and validation data.
-  """
+def train_model(
+  model, 
+  train_loader, 
+  valid_loader, 
+  optimizer, 
+  experiment_name=None, 
+  configs=None, 
+  log_results=False, 
+  # device=None,
+  device='cpu', # to not break exisiting versions
+):
   MLP = model
   num_epochs = configs['epochs']
   perturbation_update = configs['rule_select'] in ['wp', 'np']
@@ -55,19 +51,31 @@ def train_model(model, train_loader, valid_loader, optimizer, experiment_name=No
       "activation_stats": list(),
   }
 
+  # run training
   for epoch in tqdm(range(num_epochs)):
     no_train = True if epoch == 0 else False # to get a baseline
+    
+    # train the epoch
     latest_epoch_results_dict = train_epoch(
-        MLP, train_loader, valid_loader, optimizer=optimizer, no_train=no_train, perturbation_update=perturbation_update, run=run, epoch=epoch
-        )
+      MLP, 
+      train_loader, 
+      valid_loader, 
+      optimizer=optimizer, 
+      no_train=no_train, 
+      perturbation_update=perturbation_update, 
+      run=run, 
+      epoch=epoch,
+      device=device,
+    )
 
+    # store latest epoch results
     for key, result in latest_epoch_results_dict.items():
       if key in results_dict.keys() and isinstance(results_dict[key], list):
         results_dict[key].append(latest_epoch_results_dict[key])
       else:
         results_dict[key] = result # copy latest
 
-    # Logging on epochs
+    # wandb logging for each epoch
     if log_results:
       run.log({"avg_train_losses": results_dict['avg_train_losses'], "epoch": epoch})
   
@@ -83,23 +91,17 @@ def train_model(model, train_loader, valid_loader, optimizer, experiment_name=No
   return results_dict
 
 
-def train_epoch(MLP, train_loader, valid_loader, optimizer, no_train=False, perturbation_update=False, run=None, epoch=None):
-  """
-  Train a model for one epoch.
-
-  Arguments:
-  - MLP (torch model): Model to train.
-  - train_loader (torch dataloader): Dataloader to use to train the model.
-  - valid_loader (torch dataloader): Dataloader to use to validate the model.
-  - optimizer (torch optimizer): Optimizer to use to update the model.
-  - no_train (bool, optional): If True, the model is not trained for the
-    current epoch. Allows a baseline (chance) performance to be computed in the
-    first epoch before training starts.
-
-  Returns:
-  - epoch_results_dict (dict): Dictionary storing epoch results on training
-    and validation data.
-  """
+def train_epoch(
+  MLP, 
+  train_loader, 
+  valid_loader, 
+  optimizer, 
+  no_train=False, 
+  perturbation_update=False, 
+  run=None, 
+  epoch=None, 
+  device=None,
+):
 
   criterion = torch.nn.NLLLoss()
   #Negative Log-Likelihood Loss, torch.log(softmax(output))
@@ -109,12 +111,13 @@ def train_epoch(MLP, train_loader, valid_loader, optimizer, no_train=False, pert
   #   for params in MLP.parameters():
   #     params.requires_grad = False
 
+  # TODO: wtf does this mean
   epoch_results_dict = dict()
   for dataset in ["train", "valid"]:
     for sub_str in ["correct_by_class", "seen_by_class"]:
       epoch_results_dict[f"{dataset}_{sub_str}"] = {
-          i:0 for i in range(MLP.num_outputs)
-          }
+        i:0 for i in range(MLP.num_outputs)
+      }
 
   MLP.train()
   train_losses, train_acc = list(), list()
@@ -125,6 +128,8 @@ def train_epoch(MLP, train_loader, valid_loader, optimizer, no_train=False, pert
   all_loss_stats = []
     
   for X, y in train_loader:
+    X = X.to(device)
+    y = y.to(device)
     if perturbation_update:
       # Update model using perturbation
 
@@ -135,28 +140,28 @@ def train_epoch(MLP, train_loader, valid_loader, optimizer, no_train=False, pert
       train_losses.append(loss.item() * len(y))
       train_acc.append(acc.item() * len(y))
       update_results_by_class_in_place(
-            y, y_pred.detach(), epoch_results_dict, dataset="train",
-            num_classes=MLP.num_outputs
+        y, y_pred.detach(), epoch_results_dict, dataset="train",
+        num_classes=MLP.num_outputs
       )
       
       update_results_by_class_in_place(
           y, y_pred.detach(), epoch_results_dict, dataset="train",
           num_classes=MLP.num_outputs
           )
+      w_stats, a_stats = collect_statistics(MLP, X)
+      all_weight_stats.append(w_stats)
+      all_activation_stats.append(a_stats)
 
       # Perturbed pass
       y_pred_p, perturbs, activations = MLP.forward_p(X, y=y)
       loss_p = criterion(torch.log(y_pred_p), y)
 
       optimizer.zero_grad()
-
-      # Calculate gradients
-
       if not no_train:
         MLP.accumulate_grads(X, perturbs, activations, loss, loss_p)
         #loss.backward()
         optimizer.step()
-        #pass
+
     else:
       # Update model as usual
       y_pred = MLP(X, y=y)
@@ -170,8 +175,12 @@ def train_epoch(MLP, train_loader, valid_loader, optimizer, no_train=False, pert
           y, y_pred.detach(), epoch_results_dict, dataset="train",
           num_classes=MLP.num_outputs
           )
-      optimizer.zero_grad()
 
+      w_stats, a_stats = collect_statistics(MLP, X)
+      all_weight_stats.append(w_stats)
+      all_activation_stats.append(a_stats)
+
+      optimizer.zero_grad()
       if not no_train:
         loss.backward()
         optimizer.step()
@@ -188,6 +197,8 @@ def train_epoch(MLP, train_loader, valid_loader, optimizer, no_train=False, pert
   valid_losses, valid_acc = list(), list()
   with torch.no_grad():
     for X, y in valid_loader:
+      X = X.to(device)
+      y = y.to(device)
       y_pred = MLP(X)
       loss = criterion(torch.log(y_pred), y)
       acc = (torch.argmax(y_pred, axis=1) == y).sum() / len(y)
@@ -195,7 +206,7 @@ def train_epoch(MLP, train_loader, valid_loader, optimizer, no_train=False, pert
       valid_acc.append(acc.item() * len(y))
       update_results_by_class_in_place(
           y, y_pred.detach(), epoch_results_dict, dataset="valid"
-          )
+        )
 
   num_items = len(valid_loader.dataset)
   epoch_results_dict["avg_valid_losses"] = np.sum(valid_losses) / num_items
@@ -211,24 +222,30 @@ def train_epoch(MLP, train_loader, valid_loader, optimizer, no_train=False, pert
 
   return epoch_results_dict
 
-def update_results_by_class_in_place(y, y_pred, result_dict, dataset="train",
-                                     num_classes=10):
-    y_pred = np.argmax(y_pred, axis=1)
-    if len(y) != len(y_pred):
-        raise RuntimeError("Number of predictions does not match number of targets.")
+def update_results_by_class_in_place(
+  _y, _y_pred, 
+  result_dict, 
+  dataset="train",
+  num_classes=10, #TODO: static why?
+):
+  y = _y.cpu()
+  y_pred = _y_pred.cpu()
+  y_pred = np.argmax(y_pred, axis=1)
+  if len(y) != len(y_pred):
+      raise RuntimeError("Number of predictions does not match number of targets.")
 
-    for i in result_dict[f"{dataset}_seen_by_class"].keys():
-        idxs = np.where(y == int(i))[0]
-        result_dict[f"{dataset}_seen_by_class"][int(i)] += len(idxs)
+  for i in result_dict[f"{dataset}_seen_by_class"].keys():
+      idxs = np.where(y == int(i))[0]
+      result_dict[f"{dataset}_seen_by_class"][int(i)] += len(idxs)
 
-        num_correct = int(sum(y[idxs] == y_pred[idxs]))
-        result_dict[f"{dataset}_correct_by_class"][int(i)] += num_correct
+      num_correct = int(sum(y[idxs] == y_pred[idxs]))
+      result_dict[f"{dataset}_correct_by_class"][int(i)] += num_correct
 
 def collect_statistics(model, data):
     # Collect weight statistics
     weight_stats = {
-        'lin1': model.lin1.weight.data.clone(),
-        'lin2': model.lin2.weight.data.clone()
+        'lin1': model.lin1.weight.data.clone().cpu(),
+        'lin2': model.lin2.weight.data.clone().cpu(),
     }
 
     # Collect activation statistics
@@ -237,7 +254,7 @@ def collect_statistics(model, data):
         h = model(data)
 
     activation_stats = {
-        'output': h.clone(),
+        'output': h.clone().cpu(),
     }
 
     # We can't collect layer-wise activity changes without modifying the model
@@ -254,9 +271,9 @@ def compute_aggregate_stats(stats_list):
     all_stats = np.array(all_stats)
 
     return {
-        'mean': np.mean(all_stats, axis=1),
-        'std': np.std(all_stats, axis=1),
-        'min': np.min(all_stats, axis=1),
-        'max': np.max(all_stats, axis=1),
-        'median': np.median(all_stats, axis=1)
+      'mean': np.mean(all_stats, axis=1),
+      'std': np.std(all_stats, axis=1),
+      'min': np.min(all_stats, axis=1),
+      'max': np.max(all_stats, axis=1),
+      'median': np.median(all_stats, axis=1)
     }

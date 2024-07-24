@@ -1,3 +1,6 @@
+import torch
+import torchvision
+
 def download_mnist(train_prop=0.8, keep_prop=0.5):
 
   valid_prop = 1 - train_prop

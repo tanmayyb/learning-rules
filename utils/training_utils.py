@@ -31,7 +31,7 @@ def train_model(model, train_loader, valid_loader, optimizer, experiment_name=No
   """
   MLP = model
   num_epochs = configs['epochs']
-  perturbation_update = configs['rule_select'] is in ['wp', 'np']
+  perturbation_update = configs['rule_select'] in ['wp', 'np']
 
   if log_results:
     # initialize run

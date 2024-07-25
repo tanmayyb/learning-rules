@@ -297,7 +297,9 @@ def compute_aggregate_stats(stats_list):
     flat_stats = torch.cat([s.flatten() for s in stats.values()])
     all_stats.append(flat_stats.numpy())
 
-  all_stats = np.array(all_stats)
+  # Ensure all elements have the same shape before creating the array
+  all_stats = np.vstack(all_stats)
+  #all_stats = np.array(all_stats)
 
   return {
     'mean': np.mean(all_stats, axis=1),

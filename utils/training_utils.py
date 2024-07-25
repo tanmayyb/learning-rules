@@ -231,7 +231,7 @@ def update_results_by_class_in_place(
   _y, _y_pred, 
   result_dict, 
   dataset="train",
-  num_classes=10, #TODO: static why?
+  #num_classes=10, #TODO: static why?
 ):
   y = _y.cpu()
   y_pred = _y_pred.cpu()

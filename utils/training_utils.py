@@ -77,7 +77,10 @@ def train_model(
 
     # wandb logging for each epoch
     if log_results:
-      run.log({"avg_train_losses": results_dict['avg_train_losses'], "epoch": epoch})
+      run.log({
+        "avg_train_losses": results_dict['avg_train_losses'][-1], # average loss in epoch 
+        "epoch": epoch
+      })
   
   if log_results: #Question for Tanmay: anything need to be saved in results_dict if log_results?
     # save model info

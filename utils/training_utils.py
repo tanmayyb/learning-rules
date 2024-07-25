@@ -308,3 +308,60 @@ def compute_aggregate_stats(stats_list):
     'max': np.max(all_stats, axis=1),
     'median': np.median(all_stats, axis=1)
   }
+
+
+def select_model(configs, device)-> torch.nn.Module:
+  if configs['rule_select'] == 'backprop':
+    from rules.classes.MLP import MultiLayerPerceptron
+    model = MultiLayerPerceptron(
+      num_inputs=configs['num_inputs'],
+      num_hidden=configs['num_hidden'],
+      num_outputs=configs['num_outputs'],
+      bias=configs['bias'],
+      activation_type=configs['activation_type'],
+    ).to(device)
+
+  elif configs['rule_select'] == 'hebb':
+    from rules.Hebbian import HebbianNetwork
+    model = HebbianNetwork(
+      num_inputs=configs['num_inputs'],
+      num_hidden=configs['num_hidden'],
+      num_outputs=configs['num_outputs'],
+      clamp_output=configs['clamp_output'],
+      bias=configs['bias'],
+    ).to(device)
+
+  elif configs['rule_select'] == 'wp':
+    from rules.WP import WeightPerturbMLP
+    model = WeightPerturbMLP(
+      num_inputs=configs['num_inputs'],
+      num_hidden=configs['num_hidden'],
+      num_outputs=configs['num_outputs'],
+      bias=configs['bias'],
+      activation_type=configs['activation_type'],
+    ).to(device)
+
+  elif configs['rule_select'] == 'np':
+    from rules.NP import NodePerturbMLP
+    model = NodePerturbMLP(
+      num_inputs=configs['num_inputs'],
+      num_hidden=configs['num_hidden'],
+      num_outputs=configs['num_outputs'],
+      bias=configs['bias'],
+      activation_type=configs['activation_type'],
+    ).to(device)
+
+  elif configs['rule_select'] == 'fa':
+    from rules.FA import FeedbackAlignmentPerceptron
+    model = FeedbackAlignmentPerceptron(
+      num_inputs=configs['num_inputs'],
+      num_hidden=configs['num_hidden'],
+      num_outputs=configs['num_outputs'],
+      bias=configs['bias'],
+      activation_type=configs['activation_type'],
+    ).to(device)
+
+  else:
+      raise NotImplementedError("Selected Rule does not exist!")
+
+  return model

@@ -11,23 +11,23 @@ device = torch.device('cuda:1' if torch.cuda.is_available() else 'cpu')
 
 entity="adorable-lantanas"
 project="bp-vs-wp"
-prefix="tbishnoi-testrun"
+prefix="tbishnoi-run-0"
 log_results=True
-num_ramdom_seed=1
+num_ramdom_seed=10
 random_seed=0 # initial random_seed
 
 _configs = dict(
   entity=entity,
   project=project,
 
-  epochs = 5,
+  epochs = 10,
   batch_size = 32,
   num_inputs = 784,
   num_hidden = 100,
   num_outputs = 10,
   activation_type = 'relu',
 
-  bias=False,
+  bias=True,
   momentum=0.9,
   weight_decay=0.000,
   nesterov=True,
@@ -114,10 +114,6 @@ def main():
       print(f"\trandom seed:\t{random_seed}")
       print(f"\tmodel filepath:\t{model_filepath}")
       print()
-
-
-
-
 
       train_model(
         model, 

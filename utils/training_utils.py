@@ -130,6 +130,7 @@ def train_epoch(
   for batch_idx, (X, y) in enumerate(train_loader): #stat
     X = X.to(device)
     y = y.to(device)
+    
     if perturbation_update:
       # Update model using perturbation
 
@@ -170,6 +171,7 @@ def train_epoch(
       train_losses.append(loss.item() * len(y))
       train_acc.append(acc.item() * len(y))
 
+      #stats
       update_results_by_class_in_place(
           y, y_pred.detach(), epoch_results_dict, dataset="train",
           num_classes=MLP.num_outputs
@@ -178,6 +180,7 @@ def train_epoch(
       w_stats, a_stats = collect_statistics(MLP, X)
       all_weight_stats.append(w_stats)
       all_activation_stats.append(a_stats)
+      all_loss_stats.append(loss)
 
       optimizer.zero_grad()
       if not no_train:
@@ -188,6 +191,7 @@ def train_epoch(
     if run is not None:
         run.log({"train_loss": loss.item(), "epoch": epoch})
 
+  #stat
   num_items = len(train_loader.dataset)
   epoch_results_dict["avg_train_losses"] = np.sum(train_losses) / num_items
   epoch_results_dict["avg_train_accuracies"] = np.sum(train_acc) / num_items * 100
@@ -203,6 +207,8 @@ def train_epoch(
       acc = (torch.argmax(y_pred, axis=1) == y).sum() / len(y)
       valid_losses.append(loss.item() * len(y))
       valid_acc.append(acc.item() * len(y))
+
+      #stat
       update_results_by_class_in_place(
           y, y_pred.detach(), epoch_results_dict, dataset="valid"
         )

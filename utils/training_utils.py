@@ -67,7 +67,7 @@ def train_model(
       device=device,
     )
 
-    # store latest epoch results
+    # store results of the epoch
     for key, result in latest_epoch_results_dict.items():
       if key in results_dict.keys() and isinstance(results_dict[key], list):
         results_dict[key].append(latest_epoch_results_dict[key])
@@ -81,15 +81,10 @@ def train_model(
         dict(epoch=epoch), 
         **latest_epoch_results_dict
       )
-      
-      # run.log({
-      #   "avg_train_losses": latest_epoch_results_dict['avg_train_losses'], # average loss in epoch 
-      #   "epoch": epoch
-      # })
       run.log(per_epoch_info)
   
+  # save model weights
   if log_results:
-    # save model info
     model_filepath = configs['model_filepath']
     dirpath = os.path.dirname(model_filepath)
     os.makedirs(dirpath, exist_ok=True)
@@ -123,57 +118,53 @@ def train_epoch(
 
   epoch_results_dict = dict() #stat
   
-  for dataset in ["train", "valid"]:
-    for sub_str in ["correct_by_class", "seen_by_class"]:
-      epoch_results_dict[f"{dataset}_{sub_str}"] = {
-        i:0 for i in range(MLP.num_outputs)
-      }
+  # for dataset in ["train", "valid"]:
+  #   for sub_str in ["correct_by_class", "seen_by_class"]:
+  #     epoch_results_dict[f"{dataset}_{sub_str}"] = {
+  #       i:0 for i in range(MLP.num_outputs)
+  #     }
 
   MLP.train()
-  train_losses, train_acc = list(), list()
+  train_losses, train_acc = list(), list() # for each epoch
   
-  #stat
+  # entire history of weights and activations
   all_weight_stats = []
   all_activation_stats = []
   all_loss_stats = []
-    
+  
   for batch_idx, (X, y) in enumerate(train_loader): #stat
     X = X.to(device)
     y = y.to(device)
     
+    # unperturbed pass
     if perturbation_update:
-      # Update model using perturbation
-
-      # Unperturbed pass
       y_pred = MLP(X, y=y)
       loss = criterion(torch.log(y_pred), y) # unperturbed loss
       acc = (torch.argmax(y_pred.detach(), axis=1) == y).sum() / len(y)
       train_losses.append(loss.item() * len(y))
       train_acc.append(acc.item() * len(y))
 
-      #stat
-      update_results_by_class_in_place(
-        y, y_pred.detach(), epoch_results_dict, dataset="train",
-        num_classes=MLP.num_outputs
-      )
-      
+      # # how did the model do w.r.t each class in this batch?
+      # update_results_by_class_in_place(
+      #   y, y_pred.detach(), epoch_results_dict, dataset="train",
+      #   num_classes=MLP.num_outputs
+      # )
+
       w_stats, a_stats = collect_statistics(MLP, X)
       all_weight_stats.append(w_stats)
       all_activation_stats.append(a_stats)
       all_loss_stats.append(loss)
 
-      # Perturbed pass
+      # perturbed pass
       y_pred_p, perturbs, activations = MLP.forward_p(X, y=y)
       loss_p = criterion(torch.log(y_pred_p), y)
 
       optimizer.zero_grad()
       if not no_train:
         MLP.accumulate_grads(X, perturbs, activations, loss, loss_p)
-        #loss.backward()
         optimizer.step()
-
-    else:
-      # Update model as usual
+        
+    else: # update model as usual
       y_pred = MLP(X, y=y)
 
       loss = criterion(torch.log(y_pred), y) # loss function
@@ -181,11 +172,11 @@ def train_epoch(
       train_losses.append(loss.item() * len(y))
       train_acc.append(acc.item() * len(y))
 
-      #stats
-      update_results_by_class_in_place(
-          y, y_pred.detach(), epoch_results_dict, dataset="train",
-          num_classes=MLP.num_outputs
-          )
+      # #  how did the model do w.r.t each class in this batch?
+      # update_results_by_class_in_place(
+      #   y, y_pred.detach(), epoch_results_dict, dataset="train",
+      #   num_classes=MLP.num_outputs
+      # )
 
       w_stats, a_stats = collect_statistics(MLP, X)
       all_weight_stats.append(w_stats)
@@ -197,71 +188,69 @@ def train_epoch(
         loss.backward()
         optimizer.step()
 
-    # Logging at end of batch 
+    # logging at end of batch 
     if run is not None:
-        run.log({"train_loss": loss.item(), "epoch": epoch})
+        run.log({"train_loss": loss.item(), "epoch": epoch,})
 
-  #stat
-  num_items = len(train_loader.dataset)
-  epoch_results_dict["avg_train_losses"] = np.sum(train_losses) / num_items
-  epoch_results_dict["avg_train_accuracies"] = np.sum(train_acc) / num_items * 100
-
+  # evaluation of model after end of batch
   MLP.eval()
   valid_losses, valid_acc = list(), list()
   with torch.no_grad():
     for X, y in valid_loader:
       X = X.to(device)
       y = y.to(device)
+
       y_pred = MLP(X)
       loss = criterion(torch.log(y_pred), y)
       acc = (torch.argmax(y_pred, axis=1) == y).sum() / len(y)
       valid_losses.append(loss.item() * len(y))
       valid_acc.append(acc.item() * len(y))
 
-      #stat
-      update_results_by_class_in_place(
-          y, y_pred.detach(), epoch_results_dict, dataset="valid"
-        )
+      # stat
+      # update_results_by_class_in_place(
+      #   y, y_pred.detach(), 
+      #   epoch_results_dict, 
+      #   dataset="valid",
+      # )
+
+  num_items = len(train_loader.dataset)
+  epoch_results_dict["avg_train_losses"] = np.sum(train_losses) / num_items
+  epoch_results_dict["avg_train_accuracies"] = np.sum(train_acc) / num_items * 100
+  epoch_results_dict['weight_stats'] = compute_aggregate_stats(all_weight_stats)
+  # epoch_results_dict['activation_stats'] = compute_aggregate_stats(all_activation_stats)
 
   num_items = len(valid_loader.dataset)
   epoch_results_dict["avg_valid_losses"] = np.sum(valid_losses) / num_items
   epoch_results_dict["avg_valid_accuracies"] = np.sum(valid_acc) / num_items * 100
 
-  # Compute aggregate statistics
-  weight_agg_stats = compute_aggregate_stats(all_weight_stats)
-  activation_agg_stats = compute_aggregate_stats(all_activation_stats)
-
-  # Add to epoch_results_dict
-  epoch_results_dict['weight_stats'] = weight_agg_stats
-  epoch_results_dict['activation_stats'] = activation_agg_stats
-
   return epoch_results_dict
 
-#stat related functions:
-def update_results_by_class_in_place(
-  _y, _y_pred, 
-  result_dict, 
-  dataset="train",
-  num_classes=10, #TODO: static why?
-  ):
-  """
-  Update training and validation accuracy 
-  e.g., train accuracy = train_correct_by_class/train_seen_by_class
-  result_dict = epoch_results_dict
-  dataset="train" or "valid"
-  """
-  y = _y.cpu()
-  y_pred = _y_pred.cpu()
-  y_pred = np.argmax(y_pred, axis=1)
-  if len(y) != len(y_pred):
-    raise RuntimeError("Number of predictions does not match number of targets.")
+# # stat related functions
+# def update_results_by_class_in_place(
+#   _y, _y_pred, 
+#   result_dict, 
+#   dataset="training_classes",
+#   num_classes=10, #TODO: static why?
+# ):
+#   """
+#   Update training and validation accuracy 
+#   e.g., train accuracy = train_correct_by_class/train_seen_by_class
+#   result_dict = epoch_results_dict
+#   dataset="train" or "valid"
+#   """
+#   y = _y.cpu()
+#   y_pred = _y_pred.cpu()
+  
+#   y_pred = np.argmax(y_pred, axis=1)
+#   if len(y) != len(y_pred):
+#     raise RuntimeError("Number of predictions does not match number of targets.")
 
-  for i in result_dict[f"{dataset}_seen_by_class"].keys():
-    idxs = np.where(y == int(i))[0]
-    result_dict[f"{dataset}_seen_by_class"][int(i)] += len(idxs)
+#   for i in result_dict[f"{dataset}_seen_by_class"].keys():
+#     idxs = np.where(y == int(i))[0]
+#     result_dict[f"{dataset}_seen_by_class"][int(i)] += len(idxs)
 
-    num_correct = int(sum(y[idxs] == y_pred[idxs]))
-    result_dict[f"{dataset}_correct_by_class"][int(i)] += num_correct
+#     num_correct = int(sum(y[idxs] == y_pred[idxs]))
+#     result_dict[f"{dataset}_correct_by_class"][int(i)] += num_correct
 
 def collect_statistics(model, data):
   """
@@ -272,6 +261,8 @@ def collect_statistics(model, data):
       'lin1': model.lin1.weight.data.clone().cpu(),
       'lin2': model.lin2.weight.data.clone().cpu(),
   }
+
+  # print(weight_stats['lin1'])
 
   # Collect activation statistics
   model.eval()
@@ -297,9 +288,14 @@ def compute_aggregate_stats(stats_list):
     flat_stats = torch.cat([s.flatten() for s in stats.values()])
     all_stats.append(flat_stats.numpy())
 
-  # Ensure all elements have the same shape before creating the array
-  all_stats = np.vstack(all_stats)
-  #all_stats = np.array(all_stats)
+  # Ensure all elements have the same shape before creating the array  
+  try:
+    all_stats = np.vstack(all_stats)
+  except:
+    print("im broken")
+    import sys
+    sys.exit(0)
+  # all_stats = np.array(all_stats)
 
   return {
     'mean': np.mean(all_stats, axis=1),
@@ -310,6 +306,7 @@ def compute_aggregate_stats(stats_list):
   }
 
 
+# select model
 def select_model(configs, device)-> torch.nn.Module:
   if configs['rule_select'] == 'backprop':
     from rules.classes.MLP import MultiLayerPerceptron
@@ -331,7 +328,7 @@ def select_model(configs, device)-> torch.nn.Module:
       bias=configs['bias'],
     ).to(device)
 
-  elif configs['rule_select'] == 'wp':
+  elif configs['rule_select'] == 'wp': # change to accepting kwargs
     from rules.WP import WeightPerturbMLP
     model = WeightPerturbMLP(
       num_inputs=configs['num_inputs'],
@@ -339,6 +336,7 @@ def select_model(configs, device)-> torch.nn.Module:
       num_outputs=configs['num_outputs'],
       bias=configs['bias'],
       activation_type=configs['activation_type'],
+      sigma=configs['sigma'],
     ).to(device)
 
   elif configs['rule_select'] == 'np':

@@ -13,14 +13,12 @@ device = torch.device('cuda:1' if torch.cuda.is_available() else 'cpu')
 import wandb
 wandb.login()
 
-
 entity="adorable-lantanas"
-project="learning-rules"
+project="tbishnoi-learning-rules"
 
 configs = dict(
   entity=entity,
   project=project,
-  rule_select = 'hebb',
   epochs = 10,
   batch_size = 32,
   num_inputs = 784,
@@ -156,21 +154,26 @@ def generate_experiment_name( # write this function to generate your custom name
 
 for rule in [
   'backprop', 
-  # 'hebb',
-  # 'wp',
-  # 'np',
+  'hebb',
+  'wp',
+  'np',
 ]:
   
   configs['rule_select'] = rule
   experiment_name = generate_experiment_name(rule)
-  print(
-    "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%\n"
-    f"rule: {rule}\n"
-    "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%\n"
-  )
+
+  # create and save model name
+  model_filepath = f"models/model-{datetime.now(timezone.utc).strftime('%y%m%d-%H%M%S')}.pth"
+  configs['model_filepath'] = model_filepath
 
   model = select_model(configs)
   optimizer = BasicOptimizer(model.parameters(), lr=configs['lr'], weight_decay=configs['weight_decay'])
+
+  print(
+    "\n%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%\n"
+    f"rule: {rule}\n"
+    "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%\n"
+  )
 
   train_model(
     model, 

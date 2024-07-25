@@ -1,4 +1,5 @@
 import torch
+import copy
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 from torch.autograd import Variable
@@ -10,56 +11,32 @@ device = torch.device('cuda:1' if torch.cuda.is_available() else 'cpu')
 
 entity="adorable-lantanas"
 project="learning-rules"
+prefix="tbishnoi-learn"
 log_results=True
+num_seed=10
+seed=0
 
-configs = dict(
+_configs = dict(
   entity=entity,
   project=project,
-  epochs = 2,
+  epochs = 20,
   batch_size = 32,
   num_inputs = 784,
   num_hidden = 100,
   num_outputs = 10,
+
   activation_type = 'relu',
-  bias = False,
-  lr=1e-4,
+
+  bias=True,
+  # lr=1e-4,
   momentum=0.9,
-  weight_decay=0.001,
+  # weight_decay=0.001,
   nesterov=True,
 
   # hebbian-specific
-  clamp_output=True,
+  # clamp_output=True,
+
 )
-
-
-train_loader = DataLoader(
-  datasets.MNIST(
-    './data', train=True, download=True,
-    transform = transforms.Compose([
-      transforms.ToTensor(),
-      transforms.Normalize(
-          (0.1307,),(0.3081,)
-      )
-    ])
-  ),
-  batch_size=configs['batch_size'],
-  shuffle=True,
-)
-
-test_loader = DataLoader(
-  datasets.MNIST(
-    './data', train=False, download=True,
-    transform=transforms.Compose([
-      transforms.ToTensor(),
-        transforms.Normalize(
-          (0.1307,),(0.3081,)
-          )
-      ]),
-  ),
-  batch_size=configs['batch_size'],
-  shuffle=True,
-)
-
 
 
 """
@@ -78,53 +55,80 @@ test_loader = DataLoader(
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 """
 
+def generate_experiment_name( # write this function to generate your custom name
+  prefix, info,
+) -> str:
+  return f"{prefix}-{info}"
+
 def main():
+
+  # set initial seed
+  set_seed(seed)
+
+  #create loaders
+  from utils.data_utils import set_seed, download_mnist
+  train_set, valid_set, test_set = download_mnist()
+  configs = copy.deepcopy(_configs)
+  train_loader = torch.utils.data.DataLoader(train_set, batch_size=configs['batch_size'], shuffle=True)
+  valid_loader = torch.utils.data.DataLoader(valid_set, batch_size=configs['batch_size'], shuffle=False)
+  test_loader = torch.utils.data.DataLoader(test_set, batch_size=configs['batch_size'], shuffle=False)
+
 
   from utils.training_utils import select_model, train_model
   from rules.classes.BasicOptim import BasicOptimizer
-
-  def generate_experiment_name( # write this function to generate your custom name
-    name,
-  ):
-    name = f"tbishnoi-test-{name}"
-    return name
-
   for rule in [
     'backprop', 
     # 'hebb',
-    # 'wp',
+    'wp',
     # 'np',
   ]:
-    
-    configs['rule_select'] = rule
-    experiment_name = generate_experiment_name(rule)
 
-    # create and save model name
-    model_filepath = f"models/model-{datetime.now(timezone.utc).strftime('%y%m%d-%H%M%S')}.pth"
-    configs['model_filepath'] = model_filepath
+    # for each rule we copy base config
+    configs = copy.deepcopy(_configs)
 
-    model = select_model(configs, device)
-    optimizer = BasicOptimizer(model.parameters(), lr=configs['lr'], weight_decay=configs['weight_decay'])
+    if rule=='backprop':
+      configs['lr'] = 1e-4
 
-    print(
-      "\n%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%\n"
-      f"rule: {rule}\n"
-      "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%\n"
-    )
 
-    train_model(
-      model, 
-      train_loader, 
-      test_loader, 
-      optimizer, 
-      experiment_name, 
-      configs, 
-      log_results=log_results, 
-      device=device
-    )
+    for seed in tqdm(range(num_seed)):
+      # rule
+      configs['rule_select'] = rule
+      
+      # experiment name
+      experiment_name = generate_experiment_name(prefix, rule, seed)
+      configs['experiment_name'] = experiment_name
 
-  del model
-  del optimizer
+      # create and save model name
+      model_filepath = f"models/model-{datetime.now(timezone.utc).strftime('%y%m%d-%H%M%S')}.pth"
+      configs['model_filepath'] = model_filepath
+
+      # set seed
+      set_seed(seed)
+      configs['seed'] = seed
+      
+      # select model
+      model = select_model(configs, device)
+      optimizer = BasicOptimizer(model.parameters(), lr=configs['lr'], weight_decay=configs['weight_decay'])
+
+      print(
+        "\n%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%\n"
+        f"rule: {rule}\n"
+        "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%\n"
+      )
+
+      train_model(
+        model, 
+        train_loader, 
+        test_loader, 
+        optimizer, 
+        experiment_name, 
+        configs, 
+        log_results=log_results, 
+        device=device
+      )
+
+    del model
+    del optimizer
 
 
 if __name__ == '__main__':

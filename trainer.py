@@ -4,7 +4,6 @@ from torchvision import datasets, transforms
 from torch.autograd import Variable
 from tqdm import tqdm
 from datetime import datetime, timezone
-import os
 
 # device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 device = torch.device('cuda:1' if torch.cuda.is_available() else 'cpu')

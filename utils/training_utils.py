@@ -89,7 +89,7 @@ def train_model(
       # })
       run.log(per_epoch_info)
   
-  if log_results: #Question for Tanmay: anything need to be saved in results_dict if log_results?
+  if log_results:
     # save model info
     os.makedirs("models", exist_ok=True)
     torch.save(model.state_dict(), "models/model.pth")

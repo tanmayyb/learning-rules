@@ -9,17 +9,14 @@ import os
 # device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 device = torch.device('cuda:1' if torch.cuda.is_available() else 'cpu')
 
-# !pip install wandb --quiet
-import wandb
-wandb.login()
-
 entity="adorable-lantanas"
-project="tbishnoi-learning-rules"
+project="learning-rules"
+log_results=True
 
 configs = dict(
   entity=entity,
   project=project,
-  epochs = 10,
+  epochs = 2,
   batch_size = 32,
   num_inputs = 784,
   num_hidden = 100,
@@ -31,11 +28,7 @@ configs = dict(
   weight_decay=0.001,
   nesterov=True,
 
-  ############
-  # specific #
-  ############
-
-  # hebbian
+  # hebbian-specific
   clamp_output=True,
 )
 
@@ -69,64 +62,6 @@ test_loader = DataLoader(
 )
 
 
-from rules.classes.BasicOptim import BasicOptimizer
-
-def select_model(configs)-> torch.nn.Module:
-  if configs['rule_select'] == 'backprop':
-    from rules.classes.MLP import MultiLayerPerceptron
-    model = MultiLayerPerceptron(
-      num_inputs=configs['num_inputs'],
-      num_hidden=configs['num_hidden'],
-      num_outputs=configs['num_outputs'],
-      bias=configs['bias'],
-      activation_type=configs['activation_type'],
-    ).to(device)
-
-  elif configs['rule_select'] == 'hebb':
-    from rules.Hebbian import HebbianNetwork
-    model = HebbianNetwork(
-      num_inputs=configs['num_inputs'],
-      num_hidden=configs['num_hidden'],
-      num_outputs=configs['num_outputs'],
-      clamp_output=configs['clamp_output'],
-      bias=configs['bias'],
-    ).to(device)
-
-  elif configs['rule_select'] == 'wp':
-    from rules.WP import WeightPerturbMLP
-    model = WeightPerturbMLP(
-      num_inputs=configs['num_inputs'],
-      num_hidden=configs['num_hidden'],
-      num_outputs=configs['num_outputs'],
-      bias=configs['bias'],
-      activation_type=configs['activation_type'],
-    ).to(device)
-
-  elif configs['rule_select'] == 'np':
-    from rules.NP import NodePerturbMLP
-    model = NodePerturbMLP(
-      num_inputs=configs['num_inputs'],
-      num_hidden=configs['num_hidden'],
-      num_outputs=configs['num_outputs'],
-      bias=configs['bias'],
-      activation_type=configs['activation_type'],
-    ).to(device)
-
-  elif configs['rule_select'] == 'fa':
-    from rules.FA import FeedbackAlignmentPerceptron
-    model = FeedbackAlignmentPerceptron(
-      num_inputs=configs['num_inputs'],
-      num_hidden=configs['num_hidden'],
-      num_outputs=configs['num_outputs'],
-      bias=configs['bias'],
-      activation_type=configs['activation_type'],
-    ).to(device)
-
-  else:
-      raise NotImplementedError("Selected Rule does not exist!")
-
-  return model
-
 
 """
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -144,50 +79,54 @@ def select_model(configs)-> torch.nn.Module:
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 """
 
-from utils.training_utils import train_model
+def main():
 
-def generate_experiment_name( # write this function to generate your custom name
-  name,
-):
-  name = f"tbishnoi-modeltestlocal-0-{name}"
-  return name
+  from utils.training_utils import select_model, train_model
+  from rules.classes.BasicOptim import BasicOptimizer
 
-for rule in [
-  'backprop', 
-  'hebb',
-  'wp',
-  'np',
-]:
-  
-  configs['rule_select'] = rule
-  experiment_name = generate_experiment_name(rule)
+  def generate_experiment_name( # write this function to generate your custom name
+    name,
+  ):
+    name = f"tbishnoi-test-{name}"
+    return name
 
-  # create and save model name
-  model_filepath = f"models/model-{datetime.now(timezone.utc).strftime('%y%m%d-%H%M%S')}.pth"
-  configs['model_filepath'] = model_filepath
+  for rule in [
+    'backprop', 
+    # 'hebb',
+    # 'wp',
+    # 'np',
+  ]:
+    
+    configs['rule_select'] = rule
+    experiment_name = generate_experiment_name(rule)
 
-  model = select_model(configs)
-  optimizer = BasicOptimizer(model.parameters(), lr=configs['lr'], weight_decay=configs['weight_decay'])
+    # create and save model name
+    model_filepath = f"models/model-{datetime.now(timezone.utc).strftime('%y%m%d-%H%M%S')}.pth"
+    configs['model_filepath'] = model_filepath
 
-  print(
-    "\n%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%\n"
-    f"rule: {rule}\n"
-    "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%\n"
-  )
+    model = select_model(configs, device)
+    optimizer = BasicOptimizer(model.parameters(), lr=configs['lr'], weight_decay=configs['weight_decay'])
 
-  train_model(
-    model, 
-    train_loader, 
-    test_loader, 
-    optimizer, 
-    experiment_name, 
-    configs, 
-    log_results=True, 
-    device=device
-  )
+    print(
+      "\n%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%\n"
+      f"rule: {rule}\n"
+      "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%\n"
+    )
 
-del model
-del optimizer
+    train_model(
+      model, 
+      train_loader, 
+      test_loader, 
+      optimizer, 
+      experiment_name, 
+      configs, 
+      log_results=log_results, 
+      device=device
+    )
+
+  del model
+  del optimizer
 
 
-
+if __name__ == '__main__':
+  main()

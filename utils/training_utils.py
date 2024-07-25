@@ -145,9 +145,11 @@ def train_epoch(
         y, y_pred.detach(), epoch_results_dict, dataset="train",
         num_classes=MLP.num_outputs
       )
+      
       w_stats, a_stats = collect_statistics(MLP, X)
       all_weight_stats.append(w_stats)
       all_activation_stats.append(a_stats)
+      all_loss_stats.append(loss)
 
       # Perturbed pass
       y_pred_p, perturbs, activations = MLP.forward_p(X, y=y)

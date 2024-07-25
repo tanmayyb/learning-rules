@@ -2,7 +2,7 @@ from IPython.display import Image, SVG, display
 import os
 from pathlib import Path
 
-import random
+import 
 from tqdm import tqdm
 import warnings
 import numpy as np
@@ -12,6 +12,20 @@ import torch
 import torchvision
 import contextlib
 import io
+
+
+
+def set_seed(seed): 
+  # Set seed for NumPy
+  np.random.seed(seed)
+  
+  # Set seed for PyTorch
+  torch.manual_seed(seed)
+  
+  # If you are using CUDA
+  if torch.cuda.is_available():
+      torch.cuda.manual_seed(seed)
+
 
 def download_mnist(train_prop=0.8, keep_prop=0.5):
 

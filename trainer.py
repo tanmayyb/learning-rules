@@ -6,7 +6,8 @@ from tqdm import tqdm
 from datetime import datetime, timezone
 import os
 
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+# device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+device = torch.device('cuda:1' if torch.cuda.is_available() else 'cpu')
 
 # !pip install wandb --quiet
 import wandb
@@ -20,7 +21,7 @@ configs = dict(
   entity=entity,
   project=project,
   rule_select = 'hebb',
-  epochs = 2,
+  epochs = 10,
   batch_size = 32,
   num_inputs = 784,
   num_hidden = 100,
@@ -37,7 +38,7 @@ configs = dict(
   ############
 
   # hebbian
-  clamp_output = False,
+  clamp_output=True,
 )
 
 
@@ -128,10 +129,6 @@ def select_model(configs)-> torch.nn.Module:
 
   return model
 
-model = select_model(configs)
-optimizer = BasicOptimizer(model.parameters(), lr=configs['lr'], weight_decay=configs['weight_decay'])
-
-
 
 """
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -157,8 +154,13 @@ def generate_experiment_name( # write this function to generate your custom name
   name = f"tbishnoi-modeltestlocal-0-{name}"
   return name
 
-for rule in ['backprop', 'hebb']:
-
+for rule in [
+  'backprop', 
+  # 'hebb',
+  # 'wp',
+  # 'np',
+]:
+  
   configs['rule_select'] = rule
   experiment_name = generate_experiment_name(rule)
   print(
@@ -166,6 +168,9 @@ for rule in ['backprop', 'hebb']:
     f"rule: {rule}\n"
     "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%\n"
   )
+
+  model = select_model(configs)
+  optimizer = BasicOptimizer(model.parameters(), lr=configs['lr'], weight_decay=configs['weight_decay'])
 
   train_model(
     model, 
@@ -176,6 +181,10 @@ for rule in ['backprop', 'hebb']:
     configs, 
     log_results=True, 
     device=device
-)
+  )
+
+del model
+del optimizer
+
 
 

@@ -2,7 +2,6 @@ from IPython.display import Image, SVG, display
 import os
 from pathlib import Path
 
-import 
 from tqdm import tqdm
 import warnings
 import numpy as np

@@ -22,8 +22,7 @@ def train_model(
   experiment_name=None, 
   configs=None, 
   log_results=False, 
-  # device=None,
-  device='cpu', # to not break exisiting versions
+  device='cpu',
 ):
   MLP = model
   num_epochs = configs['epochs']
@@ -89,13 +88,14 @@ def train_model(
       # })
       run.log(per_epoch_info)
   
-  if log_results: #Question for Tanmay: anything need to be saved in results_dict if log_results?
+  if log_results:
     # save model info
-    os.makedirs("models", exist_ok=True)
-    torch.save(model.state_dict(), "models/model.pth")
-    wandb.save("models/model.pth")
-  
-    # important: finish experiment
+    model_filepath = configs['model_filepath']
+    dirpath = os.path.dirname(model_filepath)
+    os.makedirs(dirpath, exist_ok=True)
+    torch.save(model.state_dict(), model_filepath)
+    wandb.save(model_filepath)
+
     run.finish()
   
   return results_dict

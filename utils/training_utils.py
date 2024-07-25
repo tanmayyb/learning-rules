@@ -227,58 +227,72 @@ def train_epoch(
 
   return epoch_results_dict
 
+#stat related functions:
 def update_results_by_class_in_place(
   _y, _y_pred, 
   result_dict, 
   dataset="train",
   #num_classes=10, #TODO: static why?
-):
+  ):
+  """
+  Update training and validation accuracy 
+  e.g., train accuracy = train_correct_by_class/train_seen_by_class
+  result_dict = epoch_results_dict
+  dataset="train" or "valid"
+  """
   y = _y.cpu()
   y_pred = _y_pred.cpu()
   y_pred = np.argmax(y_pred, axis=1)
   if len(y) != len(y_pred):
-      raise RuntimeError("Number of predictions does not match number of targets.")
+    raise RuntimeError("Number of predictions does not match number of targets.")
 
   for i in result_dict[f"{dataset}_seen_by_class"].keys():
-      idxs = np.where(y == int(i))[0]
-      result_dict[f"{dataset}_seen_by_class"][int(i)] += len(idxs)
+    idxs = np.where(y == int(i))[0]
+    result_dict[f"{dataset}_seen_by_class"][int(i)] += len(idxs)
 
-      num_correct = int(sum(y[idxs] == y_pred[idxs]))
-      result_dict[f"{dataset}_correct_by_class"][int(i)] += num_correct
+    num_correct = int(sum(y[idxs] == y_pred[idxs]))
+    result_dict[f"{dataset}_correct_by_class"][int(i)] += num_correct
 
 def collect_statistics(model, data):
-    # Collect weight statistics
-    weight_stats = {
-        'lin1': model.lin1.weight.data.clone().cpu(),
-        'lin2': model.lin2.weight.data.clone().cpu(),
-    }
+  """
+  Collect weight_stats and activation_stats
+  """
+  # Collect weight statistics
+  weight_stats = {
+      'lin1': model.lin1.weight.data.clone().cpu(),
+      'lin2': model.lin2.weight.data.clone().cpu(),
+  }
 
-    # Collect activation statistics
-    model.eval()
-    with torch.no_grad():
-        h = model(data)
+  # Collect activation statistics
+  model.eval()
+  with torch.no_grad():
+    h = model(data)
 
-    activation_stats = {
-        'output': h.clone().cpu(),
-    }
+  activation_stats = {
+      'output': h.clone().cpu(),
+  }
 
-    # We can't collect layer-wise activity changes without modifying the model
-    # So we'll skip this for now
+  # We can't collect layer-wise activity changes without modifying the model
+  # So we'll skip this for now
 
-    return weight_stats, activation_stats
+  return weight_stats, activation_stats
 
 def compute_aggregate_stats(stats_list):
-    all_stats = []
-    for stats in stats_list:
-        flat_stats = torch.cat([s.flatten() for s in stats.values()])
-        all_stats.append(flat_stats.numpy())
+  """
+  calculate mean, std, min, max, median for stats in stats_list
+  stats_list = all_weight_stats or all_activation_stats
+  """
+  all_stats = []
+  for stats in stats_list:
+    flat_stats = torch.cat([s.flatten() for s in stats.values()])
+    all_stats.append(flat_stats.numpy())
 
-    all_stats = np.array(all_stats)
+  all_stats = np.array(all_stats)
 
-    return {
-      'mean': np.mean(all_stats, axis=1),
-      'std': np.std(all_stats, axis=1),
-      'min': np.min(all_stats, axis=1),
-      'max': np.max(all_stats, axis=1),
-      'median': np.median(all_stats, axis=1)
-    }
+  return {
+    'mean': np.mean(all_stats, axis=1),
+    'std': np.std(all_stats, axis=1),
+    'min': np.min(all_stats, axis=1),
+    'max': np.max(all_stats, axis=1),
+    'median': np.median(all_stats, axis=1)
+  }

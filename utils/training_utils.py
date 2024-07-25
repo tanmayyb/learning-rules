@@ -47,8 +47,8 @@ def train_model(
       "avg_valid_losses": list(),
       "avg_train_accuracies": list(),
       "avg_valid_accuracies": list(),
-      "weight_stats": list(),
-      "activation_stats": list(),
+      "weight_stats": list(), #stat
+      "activation_stats": list(), #stat
   }
 
   # run training
@@ -79,7 +79,7 @@ def train_model(
     if log_results:
       run.log({"avg_train_losses": results_dict['avg_train_losses'], "epoch": epoch})
   
-  if log_results:
+  if log_results: #Question for Tanmay: anything need to be saved in results_dict if log_results?
     # save model info
     os.makedirs("models", exist_ok=True)
     torch.save(model.state_dict(), "models/model.pth")
@@ -111,8 +111,8 @@ def train_epoch(
   #   for params in MLP.parameters():
   #     params.requires_grad = False
 
-  # TODO: wtf does this mean
-  epoch_results_dict = dict()
+  epoch_results_dict = dict() #stat
+  
   for dataset in ["train", "valid"]:
     for sub_str in ["correct_by_class", "seen_by_class"]:
       epoch_results_dict[f"{dataset}_{sub_str}"] = {
@@ -122,12 +122,12 @@ def train_epoch(
   MLP.train()
   train_losses, train_acc = list(), list()
   
-  #new
+  #stat
   all_weight_stats = []
   all_activation_stats = []
   all_loss_stats = []
     
-  for X, y in train_loader:
+  for batch_idx, (X, y) in enumerate(train_loader): #stat
     X = X.to(device)
     y = y.to(device)
     if perturbation_update:
@@ -139,15 +139,12 @@ def train_epoch(
       acc = (torch.argmax(y_pred.detach(), axis=1) == y).sum() / len(y)
       train_losses.append(loss.item() * len(y))
       train_acc.append(acc.item() * len(y))
+
+      #stat
       update_results_by_class_in_place(
         y, y_pred.detach(), epoch_results_dict, dataset="train",
         num_classes=MLP.num_outputs
       )
-      
-      update_results_by_class_in_place(
-          y, y_pred.detach(), epoch_results_dict, dataset="train",
-          num_classes=MLP.num_outputs
-          )
       w_stats, a_stats = collect_statistics(MLP, X)
       all_weight_stats.append(w_stats)
       all_activation_stats.append(a_stats)

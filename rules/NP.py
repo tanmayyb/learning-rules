@@ -56,16 +56,22 @@ class NodePerturbMLP(MultiLayerPerceptron):
 
     return y_pred_p, perturbs, activations
 
-  def grad_w(self, input_activation, perturb, loss, loss_p):
-    outer_product = torch.einsum('bi,bj->bij', perturb, input_activation).mean(dim=0) # get outer product
-    return (loss_p - loss)*outer_product/(self.sigma**2)
+  def grad_w(self, input_activation, perturb, loss, loss_p, is_bias):
+    if is_bias:
+      return (loss_p - loss) * perturb.mean(dim=0) / (self.sigma**2)
+    else:
+      outer_product = torch.einsum('bi,bj->bij', perturb, input_activation).mean(dim=0) # get outer product
+      return (loss_p - loss)*outer_product/(self.sigma**2)
 
   def accumulate_grads(self, X, perturbs, activations, loss, loss_p):
     N_batch = X.shape[0]
     
     input_activations = [X.reshape(N_batch, -1), *activations]
     for i, params in enumerate(self.parameters()):
-        dw = self.grad_w(input_activations[i], perturbs[i], loss, loss_p)
+        is_bias = params.dim() == 1
+        dw = self.grad_w(input_activations[i//2], perturbs[i//2], loss, loss_p, is_bias=is_bias)
+        # print(is_bias)
+        # print(dw)
 
         if params.grad is None:
             params.grad = torch.zeros_like(params)

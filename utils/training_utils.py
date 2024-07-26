@@ -192,7 +192,7 @@ def train_epoch(
     if run is not None:
         run.log({"train_loss": loss.item(), "epoch": epoch,})
 
-  # evaluation of model after end of batch
+  # evaluation of model at end of epoch
   MLP.eval()
   valid_losses, valid_acc = list(), list()
   with torch.no_grad():
@@ -347,6 +347,7 @@ def select_model(configs, device)-> torch.nn.Module:
       num_outputs=configs['num_outputs'],
       bias=configs['bias'],
       activation_type=configs['activation_type'],
+      sigma=configs['sigma'],
     ).to(device)
 
   elif configs['rule_select'] == 'fa':
